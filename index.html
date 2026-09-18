@@ -64,6 +64,27 @@
     color: var(--text-muted);
   }
 
+  .pm-toggle-row { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: white; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .pm-toggle-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-right: 4px; }
+  .pm-avatar {
+    display: flex; align-items: center; gap: 8px;
+    border: 2px solid transparent; border-radius: 999px;
+    padding: 4px 14px 4px 4px; cursor: pointer; user-select: none;
+    background: #F4F6F8; transition: all 0.15s;
+  }
+  .pm-avatar:hover { background: #EBF0F7; }
+  .pm-avatar.active { background: white; border-color: var(--pm-color); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .pm-avatar .circle {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--pm-color);
+    color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .pm-avatar .pm-name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .pm-avatar .pm-count { font-size: 10.5px; color: var(--text-muted); }
+  .pm-avatar.dimmed { opacity: 0.45; }
+  .pm-toggle-clear { margin-left: auto; font-size: 12px; color: var(--accent); cursor: pointer; font-weight: 600; display: none; }
+  .pm-toggle-clear.show { display: block; }
+
   .legend-bar {
     display: flex;
     align-items: center;
@@ -224,11 +245,12 @@
 <body>
 <div class="banner"><h1>Projects At Risk</h1></div>
 
+<div class="pm-toggle-row" id="pmToggleRow">
+  <span class="pm-toggle-label">Project Manager</span>
+  <span class="pm-toggle-clear" id="pmClear">Clear selection</span>
+</div>
+
 <div class="toolbar">
-  <label for="pmFilter">Project Manager:</label>
-  <select id="pmFilter">
-    <option value="">All Project Managers</option>
-  </select>
   <span class="count" id="rowCount"></span>
 </div>
 
@@ -281,22 +303,53 @@ function fmtVal(v){ return (v==null || v==='') ? '<span class="empty-val">\u2014
 function dot(color){ return `<span class="risk-dot ${color||'none'}"></span>`; }
 
 const tbody = document.getElementById('matrixBody');
-const pmFilter = document.getElementById('pmFilter');
 const rowCount = document.getElementById('rowCount');
 
-// Populate the dropdown from the data itself, preserving the same PM order already used for grouping
+// Preserve the same PM order already used for grouping
 const pmList = [];
 DATA.forEach(r => { if (!pmList.includes(r.pm)) pmList.push(r.pm); });
-pmList.forEach(pm => {
-  const opt = document.createElement('option');
-  opt.value = pm;
-  opt.textContent = pm;
-  pmFilter.appendChild(opt);
+
+const PM_COLORS = ['#2F5FA3','#C1560C','#219653','#B98900','#8E44AD','#C0392B'];
+const pmColorMap = {};
+pmList.forEach((pm,i)=>{ pmColorMap[pm] = PM_COLORS[i % PM_COLORS.length]; });
+
+function initials(name){
+  return (name||'').split(' ').filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+const selectedPMs = new Set();
+const pmToggleRow = document.getElementById('pmToggleRow');
+pmList.forEach(pm=>{
+  const count = DATA.filter(r=>r.pm===pm).length;
+  const btn = document.createElement('div');
+  btn.className = 'pm-avatar';
+  btn.style.setProperty('--pm-color', pmColorMap[pm]);
+  btn.innerHTML = `<span class="circle">${initials(pm)}</span><span><div class="pm-name">${pm}</div><div class="pm-count">${count} projects</div></span>`;
+  btn.addEventListener('click', ()=>{
+    if (selectedPMs.has(pm)) selectedPMs.delete(pm);
+    else selectedPMs.add(pm);
+    renderMatrix();
+  });
+  pmToggleRow.appendChild(btn);
+});
+document.getElementById('pmClear').addEventListener('click', ()=>{
+  selectedPMs.clear();
+  renderMatrix();
 });
 
+function renderPMToggleStates(){
+  const anySelected = selectedPMs.size > 0;
+  document.querySelectorAll('.pm-avatar').forEach(btn=>{
+    const pm = btn.querySelector('.pm-name').textContent;
+    const isActive = selectedPMs.has(pm);
+    btn.classList.toggle('active', isActive);
+    btn.classList.toggle('dimmed', anySelected && !isActive);
+  });
+  document.getElementById('pmClear').classList.toggle('show', anySelected);
+}
+
 function renderMatrix(){
-  const selected = pmFilter.value;
-  const rows = selected ? DATA.filter(r => r.pm === selected) : DATA;
+  const rows = selectedPMs.size > 0 ? DATA.filter(r => selectedPMs.has(r.pm)) : DATA;
 
   tbody.innerHTML = '';
   let currentPM = null;
@@ -339,9 +392,9 @@ function renderMatrix(){
   });
 
   rowCount.textContent = rows.length + ' of ' + DATA.length + ' projects';
+  renderPMToggleStates();
 }
 
-pmFilter.addEventListener('change', renderMatrix);
 renderMatrix();
 
 // ===== Bottom scroll navigation buttons =====
