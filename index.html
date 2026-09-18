@@ -136,8 +136,9 @@
 
   table.matrix {
     border-collapse: collapse;
-    width: max-content;
-    min-width: 1500px;
+    table-layout: fixed;
+    width: 100%;
+    min-width: 100%;
     background: white;
   }
   table.matrix th {
@@ -153,19 +154,34 @@
     position: sticky;
     top: 0;
     z-index: 3;
+    overflow: hidden;
   }
   table.matrix th.num { text-align: right; }
-  table.matrix th.dot-col { text-align: center; min-width: 60px; }
+  table.matrix th.dot-col { text-align: center; }
+  .col-resizer {
+    position: absolute; top: 0; right: -4px; width: 9px; height: 100%; cursor: col-resize;
+    background: transparent; z-index: 4; touch-action: none;
+  }
+  .col-resizer::after {
+    content: ''; position: absolute; top: 15%; left: 50%; width: 2px; height: 70%;
+    background: rgba(255,255,255,0.55); transform: translateX(-50%);
+  }
+  .col-resizer:hover::after, .col-resizer.resizing::after { background: #FFD97D; width: 3px; }
+  .col-resizer:hover, .col-resizer.resizing { background: rgba(255,255,255,0.12); }
+  table.matrix th:last-child .col-resizer { display: none; }
 
   table.matrix td {
     padding: 6px 14px;
     font-size: 13px;
     border-bottom: 1px solid #F0F2F5;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   table.matrix td.num { text-align: right; }
   table.matrix td.dot-col { text-align: center; }
-  table.matrix td.name-cell { font-weight: 400; }
+  table.matrix td.name-cell { font-weight: 400; white-space: normal; word-break: break-word; }
+  table.matrix td.reason-cell { white-space: normal; word-break: break-word; }
 
   /* Group header rows: "Project Manager" label + name, spanning full width */
   tr.pm-group-row td {
@@ -232,18 +248,18 @@
   <table class="matrix" id="matrixTable">
     <thead>
       <tr>
-        <th style="min-width:260px;">Project Name</th>
-        <th style="min-width:100px;">Project ID</th>
-        <th style="min-width:140px;">Project Manager</th>
-        <th style="min-width:90px;">Start Date</th>
-        <th style="min-width:110px;">Contract End Date</th>
-        <th style="min-width:100px;">Target End Date</th>
-        <th class="dot-col">SV%</th>
-        <th style="min-width:150px;">SV Reasoning</th>
-        <th class="dot-col">CV%</th>
-        <th class="num" style="min-width:120px;">Contract Value</th>
-        <th class="num" style="min-width:110px;">Quoted Margin %</th>
-        <th class="num" style="min-width:150px;">% Forecasted Completion Margin</th>
+        <th style="width:15%;">Project Name<span class="col-resizer"></span></th>
+        <th style="width:7.5%;">Project ID<span class="col-resizer"></span></th>
+        <th style="width:8.5%;">Project Manager<span class="col-resizer"></span></th>
+        <th style="width:6.5%;">Start Date<span class="col-resizer"></span></th>
+        <th style="width:7.5%;">Contract End Date<span class="col-resizer"></span></th>
+        <th style="width:7%;">Target End Date<span class="col-resizer"></span></th>
+        <th class="dot-col" style="width:4.5%;">SV%<span class="col-resizer"></span></th>
+        <th style="width:17%;">SV Reasoning<span class="col-resizer"></span></th>
+        <th class="dot-col" style="width:4.5%;">CV%<span class="col-resizer"></span></th>
+        <th class="num" style="width:8%;">Contract Value<span class="col-resizer"></span></th>
+        <th class="num" style="width:7%;">Quoted Margin %<span class="col-resizer"></span></th>
+        <th class="num" style="width:7%;">% Forecasted Completion Margin<span class="col-resizer"></span></th>
       </tr>
     </thead>
     <tbody id="matrixBody"></tbody>
@@ -313,7 +329,7 @@ function renderMatrix(){
       <td>${fmtVal(r.contractEndDate)}</td>
       <td>${fmtVal(r.targetEndDate)}</td>
       <td class="dot-col">${dot(r.svDot)}</td>
-      <td>${fmtVal(r.svReasoning)}</td>
+      <td class="reason-cell">${fmtVal(r.svReasoning)}</td>
       <td class="dot-col">${dot(r.cvDot)}</td>
       <td class="num">${fmtMoney(r.contractValue)}</td>
       <td class="num">${fmtPct(r.quotedMargin)}</td>
@@ -348,6 +364,69 @@ scrollRightBtn.addEventListener('click', ()=>{
 scrollContainer.addEventListener('scroll', updateScrollButtons);
 window.addEventListener('resize', updateScrollButtons);
 updateScrollButtons();
+
+// ---- Resizable table columns (Excel-style: drag the header border) ----
+(function initColumnResize(){
+  const table = document.getElementById('matrixTable');
+  if (!table) return;
+  let activeTh = null, startX = 0, startWidth = 0;
+
+  table.querySelectorAll('th').forEach(th => {
+    const handle = th.querySelector('.col-resizer');
+    if (!handle) return;
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      activeTh = th;
+      startX = e.pageX;
+      startWidth = th.offsetWidth;
+      handle.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!activeTh) return;
+    const newWidth = Math.max(50, startWidth + (e.pageX - startX));
+    activeTh.style.width = newWidth + 'px';
+    activeTh.style.minWidth = newWidth + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!activeTh) return;
+    const handle = activeTh.querySelector('.col-resizer');
+    if (handle) handle.classList.remove('resizing');
+    activeTh = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    updateScrollButtons();
+  });
+
+  // Touch support
+  table.querySelectorAll('th .col-resizer').forEach(handle => {
+    handle.addEventListener('touchstart', (e) => {
+      const th = handle.closest('th');
+      activeTh = th;
+      startX = e.touches[0].pageX;
+      startWidth = th.offsetWidth;
+      handle.classList.add('resizing');
+    }, {passive: true});
+  });
+  document.addEventListener('touchmove', (e) => {
+    if (!activeTh || !e.touches[0]) return;
+    const newWidth = Math.max(50, startWidth + (e.touches[0].pageX - startX));
+    activeTh.style.width = newWidth + 'px';
+    activeTh.style.minWidth = newWidth + 'px';
+  }, {passive: true});
+  document.addEventListener('touchend', () => {
+    if (!activeTh) return;
+    const handle = activeTh.querySelector('.col-resizer');
+    if (handle) handle.classList.remove('resizing');
+    activeTh = null;
+    updateScrollButtons();
+  });
+})();
 </script>
 </body>
 </html>
