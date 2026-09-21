@@ -20,11 +20,23 @@
     background: #FAFBFC;
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     color: var(--text);
+    height: 100%;
+  }
+  /* The whole page is one fixed-height column: banner, PM filter, toolbar and
+     legend never scroll — only the table region below them does. This avoids
+     the classic bug where a horizontally-scrolling wrapper (overflow-x:auto)
+     silently breaks position:sticky on anything inside it. */
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
   }
   .banner {
     background: linear-gradient(90deg, #E2EFDA 0%, #DCEAD6 100%);
     padding: 16px 0;
     border-bottom: 1px solid #D3D9E2;
+    flex-shrink: 0;
   }
   .banner h1 {
     margin: 0;
@@ -40,6 +52,7 @@
     padding: 12px 20px;
     background: white;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
   .toolbar label {
     font-size: 13px;
@@ -63,6 +76,9 @@
     font-size: 12.5px;
     color: var(--text-muted);
   }
+
+  /* Banner + PM filter row: fixed chrome at the top of the page, never scrolls. */
+  .sticky-head { flex-shrink: 0; background: white; position: relative; z-index: 20; box-shadow: 0 4px 10px rgba(20,30,50,0.08); }
 
   .pm-toggle-row { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: white; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   .pm-toggle-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-right: 4px; }
@@ -95,6 +111,7 @@
     border-bottom: 1px solid var(--border);
     font-size: 12px;
     color: var(--text-muted);
+    flex-shrink: 0;
   }
   .legend-title {
     font-weight: 700;
@@ -118,10 +135,15 @@
     margin: 0 6px;
   }
 
-  /* The whole point: one wide matrix, native horizontal scroll, no card wrapping */
+  /* The whole point: one wide matrix, native horizontal scroll, no card wrapping.
+     This is now the ONE scroll container (both axes) for the whole page — bounded
+     by flex:1 so it actually has a scrollport, which is what makes the sticky
+     table header below work correctly. */
   .matrix-scroll {
+    flex: 1;
+    min-height: 0;
     overflow-x: auto;
-    overflow-y: visible;
+    overflow-y: auto;
   }
   .matrix-scroll::-webkit-scrollbar { height: 14px; }
   .matrix-scroll::-webkit-scrollbar-track { background: #EEF1F5; }
@@ -136,6 +158,7 @@
     padding: 10px 20px;
     background: #F4F6F8;
     border-top: 1px solid var(--border);
+    flex-shrink: 0;
   }
   .scroll-nav button {
     display: flex;
@@ -243,11 +266,13 @@
 </style>
 </head>
 <body>
-<div class="banner"><h1>Projects At Risk</h1></div>
+<div class="sticky-head" id="stickyHead">
+  <div class="banner"><h1>Projects At Risk</h1></div>
 
-<div class="pm-toggle-row" id="pmToggleRow">
-  <span class="pm-toggle-label">Project Manager</span>
-  <span class="pm-toggle-clear" id="pmClear">Clear selection</span>
+  <div class="pm-toggle-row" id="pmToggleRow">
+    <span class="pm-toggle-label">Project Manager</span>
+    <span class="pm-toggle-clear" id="pmClear">Clear selection</span>
+  </div>
 </div>
 
 <div class="toolbar">
@@ -270,18 +295,17 @@
   <table class="matrix" id="matrixTable">
     <thead>
       <tr>
-        <th style="width:15%;">Project Name<span class="col-resizer"></span></th>
-        <th style="width:7.5%;">Project ID<span class="col-resizer"></span></th>
-        <th style="width:8.5%;">Project Manager<span class="col-resizer"></span></th>
-        <th style="width:6.5%;">Start Date<span class="col-resizer"></span></th>
-        <th style="width:7.5%;">Contract End Date<span class="col-resizer"></span></th>
-        <th style="width:7%;">Target End Date<span class="col-resizer"></span></th>
-        <th class="dot-col" style="width:4.5%;">SV%<span class="col-resizer"></span></th>
-        <th style="width:17%;">SV Reasoning<span class="col-resizer"></span></th>
-        <th class="dot-col" style="width:4.5%;">CV%<span class="col-resizer"></span></th>
-        <th class="num" style="width:8%;">Contract Value<span class="col-resizer"></span></th>
-        <th class="num" style="width:7%;">Quoted Margin %<span class="col-resizer"></span></th>
-        <th class="num" style="width:7%;">% Forecasted Completion Margin<span class="col-resizer"></span></th>
+        <th style="width:18%;">Project Name<span class="col-resizer"></span></th>
+        <th style="width:8%;">Project ID<span class="col-resizer"></span></th>
+        <th style="width:7%;">Start Date<span class="col-resizer"></span></th>
+        <th style="width:8%;">Contract End Date<span class="col-resizer"></span></th>
+        <th style="width:7.5%;">Target End Date<span class="col-resizer"></span></th>
+        <th class="dot-col" style="width:5%;">SV%<span class="col-resizer"></span></th>
+        <th style="width:18%;">SV Reasoning<span class="col-resizer"></span></th>
+        <th class="dot-col" style="width:5%;">CV%<span class="col-resizer"></span></th>
+        <th class="num" style="width:8.5%;">Contract Value<span class="col-resizer"></span></th>
+        <th class="num" style="width:7.5%;">Quoted Margin %<span class="col-resizer"></span></th>
+        <th class="num" style="width:7.5%;">% Forecasted Completion Margin<span class="col-resizer"></span></th>
       </tr>
     </thead>
     <tbody id="matrixBody"></tbody>
@@ -360,7 +384,7 @@ function renderMatrix(){
       const groupTr = document.createElement('tr');
       groupTr.className = 'pm-group-row';
       const td = document.createElement('td');
-      td.colSpan = 12;
+      td.colSpan = 11;
       td.innerHTML = `<span class="pm-label">Project Manager</span><span class="pm-name">${currentPM}</span>`;
       groupTr.appendChild(td);
       tbody.appendChild(groupTr);
@@ -368,7 +392,7 @@ function renderMatrix(){
       const dividerTr = document.createElement('tr');
       dividerTr.className = 'pm-divider-row';
       const dtd = document.createElement('td');
-      dtd.colSpan = 12;
+      dtd.colSpan = 11;
       dividerTr.appendChild(dtd);
       tbody.appendChild(dividerTr);
     }
@@ -377,7 +401,6 @@ function renderMatrix(){
     tr.innerHTML = `
       <td class="name-cell">${r.name}</td>
       <td>${r.id}</td>
-      <td>${r.pm}</td>
       <td>${fmtVal(r.startDate)}</td>
       <td>${fmtVal(r.contractEndDate)}</td>
       <td>${fmtVal(r.targetEndDate)}</td>
